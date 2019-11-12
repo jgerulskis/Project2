@@ -3,12 +3,26 @@
 #include <pcap/pcap.h>
 #include <cstddef>
 
+// start date and time of packet capture
+// duration of capture in seconds.microseconds
+// total
+// unique senders, total # of packets sent
+//		^ use hex-colon for ethernet, dot notation for IP
+// unique receivers, total # of packets received
+//		^ use hex-colon for ethernet, dot notation for IP
+// create list of machines partcipating in "ARP", their mac and ip if possible
+// for udp unique destination ports
+// for udp unique source ports
+// avg, min, and max packet size
+struct packetCaptureData {
+	u_int count;
+};
 
 /**
 * Callback function for pcap_loop()
 */
 void analyzePacket(u_char* a, const struct pcap_pkthdr* b, const u_char *c) {
-	std::cout << "Packet read!" << std::endl;
+	std::cout << "Packet of size " << b->caplen << " received at " << b->ts.tv_sec << std::endl;
 }
 
 /**
