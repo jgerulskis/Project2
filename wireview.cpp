@@ -19,6 +19,8 @@ struct packetCaptureData {
 	u_int avgPacketSize; // must be computed at end
 };
 
+struct packetCaptureData data;
+
 struct computerInfo {
 	std::string ipAddress;
 	std::string macAddress;
@@ -57,7 +59,12 @@ void updataSumPacketSize(struct packetCaptureData &data, const struct pcap_pkthd
 * Callback function for pcap_loop()
 */
 void analyzePacket(u_char* a, const struct pcap_pkthdr* b, const u_char *c) {
-	std::cout << "Packet of size " << b->caplen << " received at " << b->ts.tv_sec << std::endl;
+	updateEndTime(data, b);
+	updateTotal(data);
+	updataMinPacketSize(data, b);
+	updataMaxPacketSize(data, b);
+	updataSumPacketSize(data, b);
+	std::cout << data.total << std::endl;
 }
 
 /**
@@ -97,5 +104,4 @@ int main(int argc, char* argv[]) {
 	}
 	std::cout << "Finished reading packet capture" << std::endl;
 	pcap_close(file);
-	
 }
