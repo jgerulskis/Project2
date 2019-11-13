@@ -4,8 +4,9 @@
 #include <cstddef>
 
 struct packetCaptureData {
-	std::string startDateAndTime;
-	double duration; // seconds.ms
+	struct timeval startDateAndTime;
+	struct timeval endDateAndTime;
+	double duration; // must be computed at end
 	u_int total;
 	std::string *uniqueSenders; 
 	std::string *uniqueRecipients;
@@ -13,14 +14,44 @@ struct packetCaptureData {
 	u_int *udpUniqueSourcePorts;
 	u_int *udpUniqueDestinationPorts;
 	u_int minPacketSize;
-	u_int maxPacketSize;
-	u_int avgPacketSize;
+	u_int maxPacketSize; 
+	u_int sumPacketSize;
+	u_int avgPacketSize; // must be computed at end
 };
 
 struct computerInfo {
 	std::string ipAddress;
 	std::string macAddress;
 };
+
+void setStartDate(struct packetCaptureData &data, const struct pcap_pkthdr* packet) {
+	data.startDateAndTime = packet->ts;
+}
+
+void updateEndTime(struct packetCaptureData &data, const struct pcap_pkthdr* packet) {
+	data.endDateAndTime = packet->ts;
+}
+
+void updateTotal(struct packetCaptureData &data) {
+	data.total++;
+}
+
+void updataMinPacketSize(struct packetCaptureData &data, const struct pcap_pkthdr* packet) {
+	if (data.minPacketSize > packet->len) {
+		data.minPacketSize = packet->len;
+	}
+}
+
+void updataMaxPacketSize(struct packetCaptureData &data, const struct pcap_pkthdr* packet) {
+	if (data.maxPacketSize < packet->len) {
+		data.maxPacketSize = packet->len;
+	}
+}
+
+void updataSumPacketSize(struct packetCaptureData &data, const struct pcap_pkthdr* packet) {
+	data.sumPacketSize += packet->len;
+}
+
 
 /**
 * Callback function for pcap_loop()
