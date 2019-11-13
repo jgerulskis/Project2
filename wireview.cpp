@@ -30,6 +30,14 @@ void setStartDate(struct packetCaptureData &data, const struct pcap_pkthdr* pack
 	data.startDateAndTime = packet->ts;
 }
 
+void updateDuration(struct packetCaptureData &data){
+	struct timeval diff = {
+		data.endDateAndTime.tv_sec - data.startDateAndTime.tv_sec,
+		data.endDateAndTime.tv_usec - data.startDateAndTime.tv_usec
+	};
+	data.duration = diff.tv_sec + diff.tv_usec / 1000000.0;
+}
+
 void updateEndTime(struct packetCaptureData &data, const struct pcap_pkthdr* packet) {
 	data.endDateAndTime = packet->ts;
 }
@@ -59,12 +67,16 @@ void updataSumPacketSize(struct packetCaptureData &data, const struct pcap_pkthd
 * Callback function for pcap_loop()
 */
 void analyzePacket(u_char* a, const struct pcap_pkthdr* b, const u_char *c) {
+	if(data.startDateAndTime.tv_sec == NULL){
+		setStartDate(data, b);
+	}
 	updateEndTime(data, b);
+	updateDuration(data);
 	updateTotal(data);
 	updataMinPacketSize(data, b);
 	updataMaxPacketSize(data, b);
 	updataSumPacketSize(data, b);
-	std::cout << data.total << std::endl;
+	std::cout << data.duration << std::endl;
 }
 
 /**
@@ -102,6 +114,8 @@ int main(int argc, char* argv[]) {
 	if (pcap_loop(file, MAX_PACKETS_TO_READ, analyzePacket, NULL) < 0) {
 		std::cout << "pcap_loop() failed: " << pcap_geterr(file) << std::endl;
 	}
+	time_t time = (time_t)data.startDateAndTime.tv_sec;
+	std::cout << ctime(&time) << std::endl;
 	std::cout << "Finished reading packet capture" << std::endl;
 	pcap_close(file);
 }
