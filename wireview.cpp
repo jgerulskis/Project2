@@ -44,11 +44,15 @@ typedef struct packetCaptureData {
 	struct timeval endDateAndTime;
 	double duration; // must be computed at end
 	u_int total;
-	ip_address *uniqueSenders; 
+	ip_address *uniqueSenders;
+	u_int uniqueSenderSize; 
 	ip_address *uniqueRecipients;
+	u_int uniqueRecipientSize; 
 	computerInfo *computers;
 	u_int *udpUniqueSourcePorts;
+	u_int uniqueSourcePortSize;
 	u_int *udpUniqueDestinationPorts;
+	u_int uniqueDestinationPortSize;
 	u_int minPacketSize;
 	u_int maxPacketSize; 
 	u_int sumPacketSize;
@@ -79,18 +83,92 @@ void updateTotal(packetCaptureData &data) {
 
 void updateUniqueSenders(packetCaptureData &data, ip_address senderIP) {
 	// TODO: implement
+	bool unique = true;
+
+	int size = data.uniqueSenderSize;
+	ip_address *newArr = new ip_address[size + 1];
+	for (int i = 0; i < size; i++){
+		ip_address addr = data.uniqueSenders[i];
+		newArr[i] = addr;
+		if(addr.byte1 == senderIP.byte1 && addr.byte2 == senderIP.byte2 &&
+			addr.byte3 == senderIP.byte3 && addr.byte4 == senderIP.byte4){
+			unique = false;
+		}
+	}
+	if(unique){
+		newArr[size] = senderIP;
+		data.uniqueSenderSize++;
+	}
+
+	delete[] data.uniqueSenders;
+	data.uniqueSenders = newArr;
 }
 
 void updateUniqueRecipients(packetCaptureData &data, ip_address RecipientsIP) {
 	// TODO: implement
+	bool unique = true;
+
+	int size = data.uniqueRecipientSize;
+	ip_address *newArr = new ip_address[size + 1];
+	for (int i = 0; i < size; i++){
+		ip_address addr = data.uniqueRecipients[i];
+		newArr[i] = addr;
+		if(addr.byte1 == RecipientsIP.byte1 && addr.byte2 == RecipientsIP.byte2 &&
+			addr.byte3 == RecipientsIP.byte3 && addr.byte4 == RecipientsIP.byte4){
+			unique = false;
+		}
+	}
+	if(unique){
+		newArr[size] = RecipientsIP;
+		data.uniqueRecipientSize++;
+	}
+
+	delete[] data.uniqueRecipients;
+	data.uniqueRecipients = newArr;
 }
 
 void updateudpUniqueSourcePorts(packetCaptureData &data, u_short sourcePort) {
 	// TODO: implement
+	bool unique = true;
+
+	int size = data.uniqueSourcePortSize;
+	u_int *newArr = new u_int[size + 1];
+	for (int i = 0; i < size; i++){
+		u_int port = data.udpUniqueSourcePorts[i];
+		newArr[i] = port;
+		if(sourcePort == port){
+			unique = false;
+		}
+	}
+	if(unique){
+		newArr[size] = sourcePort;
+		data.uniqueSourcePortSize++;
+	}
+
+	delete[] data.udpUniqueSourcePorts;
+	data.udpUniqueSourcePorts = newArr;
 }
 
 void updateudpUniqueDestinationPorts(packetCaptureData &data, u_short desitinationPort) {
 	// TODO: implement
+	bool unique = true;
+
+	int size = data.uniqueDestinationPortSize;
+	u_int *newArr = new u_int[size + 1];
+	for (int i = 0; i < size; i++){
+		u_int port = data.udpUniqueDestinationPorts[i];
+		newArr[i] = port;
+		if(desitinationPort == port){
+			unique = false;
+		}
+	}
+	if(unique){
+		newArr[size] = desitinationPort;
+		data.uniqueDestinationPortSize++;
+	}
+
+	delete[] data.udpUniqueDestinationPorts;
+	data.udpUniqueDestinationPorts = newArr;
 }
 
 /**
@@ -112,6 +190,18 @@ void updateUniqueSendersAndReceiversIPandPorts(packetCaptureData &data, const u_
     /* convert from network byte order to host byte order */
     sport = ntohs( uh->sport );
     dport = ntohs( uh->dport );
+
+    printf("%d.%d.%d.%d.%d -> %d.%d.%d.%d.%d\n",
+        ih->saddr.byte1,
+        ih->saddr.byte2,
+        ih->saddr.byte3,
+        ih->saddr.byte4,
+        sport,
+        ih->daddr.byte1,
+        ih->daddr.byte2,
+        ih->daddr.byte3,
+        ih->daddr.byte4,
+        dport);
 
 	updateUniqueSenders(data, ih->saddr);
 	updateUniqueRecipients(data, ih->daddr);
@@ -163,11 +253,33 @@ void printPacketCaptureReport(packetCaptureData &data) {
 	std::cout << "Start date and time: \t" << ctime(&time);
 	std::cout << "Duration: \t\t" << data.duration << "s" << std::endl;
 	std::cout << "Total packets: \t\t" << data.total << std::endl;
-	// unique senders
-	// unique receivers
+	std::cout << "Unique Senders: " << std::endl;
+	for(int i = 0; i < data.uniqueSenderSize; i++){
+		printf("\t %d.%d.%d.%d \n",
+        	data.uniqueSenders[i].byte1,
+        	data.uniqueSenders[i].byte2,
+        	data.uniqueSenders[i].byte3,
+        	data.uniqueSenders[i].byte4);
+	}
+	std::cout << "Unique Recipients: " << std::endl;
+	for(int i = 0; i < data.uniqueRecipientSize; i++){
+		printf("\t %d.%d.%d.%d \n",
+        	data.uniqueRecipients[i].byte1,
+        	data.uniqueRecipients[i].byte2,
+        	data.uniqueRecipients[i].byte3,
+        	data.uniqueRecipients[i].byte4);
+	}
 	// list of machines participating in arp
-	// for UDP, unique source ports
-	// for UDP, unique destination ports
+	std::cout << "UDP Unique Source Ports: " << std::endl;
+	for(int i = 0; i < data.uniqueSourcePortSize; i++){
+		printf("\t %d \n",
+        	data.udpUniqueSourcePorts[i]);
+	}
+	std::cout << "UDP Unique Destination Ports: " << std::endl;
+	for(int i = 0; i < data.uniqueDestinationPortSize; i++){
+		printf("\t %d \n",
+        	data.udpUniqueDestinationPorts[i]);
+	}
 	std::cout << "Average packet size: \t" << data.avgPacketSize << std::endl;
 	std::cout << "Minimum packet size: \t" << data.minPacketSize << std::endl;
 	std::cout << "Maximum packet size: \t" << data.maxPacketSize << std::endl;
