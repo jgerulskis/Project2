@@ -43,12 +43,16 @@ typedef struct udp_header{
     u_short crc;            // Checksum
 }udp_header;
 
-
 typedef struct uniqueUser {
 	ip_address ipAddr;
 	u_int numPackets;
 
 }uniqueUser;
+
+typedef struct arpComputers{
+	u_char macAddress[6];
+	ip_address ipAddress;
+}arpComputers;
 
 typedef struct packetCaptureData {
 	struct timeval startDateAndTime;
@@ -63,12 +67,14 @@ typedef struct packetCaptureData {
 	u_int uniqueSourcePortSize;
 	u_int *udpUniqueDestinationPorts;
 	u_int uniqueDestinationPortSize;
-	u_char uniqueSenderMacAddress[50][6]; // oh this is so bad
-	int uniqueSenderMacPackets[50];
+	u_char uniqueSenderMacAddress[100][6]; // oh this is so bad
+	int uniqueSenderMacPackets[100];
 	u_int uniqueSendersMac;
-	u_char uniqueRecipientMacAddress[50][6];
-	int uniqueRecipientsMacPackets[50];
+	u_char uniqueRecipientMacAddress[100][6];
+	int uniqueRecipientsMacPackets[100];
 	u_int uniqueRecipientsMac;
+	arpComputers uniqueARPComputers[100];
+	u_int uniqueARPCount;
 	u_int minPacketSize;
 	u_int maxPacketSize; 
 	u_int sumPacketSize;
@@ -231,6 +237,24 @@ void updateUniqueSendersMacAddresses(packetCaptureData &data, u_char macAddress[
 	data.uniqueSendersMac++;
 }
 
+void updateUniqueARPComputers(packetCaptureData &data, u_char macAddress[MAC_ADDRESSS_LENGTH], ip_address ipAdrress) {
+	if (!data.uniqueARPCount) data.uniqueARPCount = 0;
+	for (u_int i = 0; i < data.uniqueARPCount; i++) {
+		if (isEqualCharArray(data.uniqueARPComputers[i].macAddress, macAddress)) {
+			if (data.uniqueARPComputers[i].ipAddress.byte1 == ipAdrress.byte1 &&
+				data.uniqueARPComputers[i].ipAddress.byte2 == ipAdrress.byte2 &&
+				data.uniqueARPComputers[i].ipAddress.byte3 == ipAdrress.byte3 &&
+				data.uniqueARPComputers[i].ipAddress.byte4 == ipAdrress.byte4) {
+				return; // found a match
+			}
+		}
+	}
+	// no match found
+	for (int i = 0; i < MAC_ADDRESSS_LENGTH; i++) data.uniqueARPComputers[data.uniqueARPCount].macAddress[i] = macAddress[i];
+	data.uniqueARPComputers[data.uniqueARPCount].ipAddress = ipAdrress;
+	data.uniqueARPCount++;
+}
+
 /**
  * Source: https://www.winpcap.org/docs/docs_412/html/group__wpcap__tut6.html
  */
@@ -243,7 +267,6 @@ void updateUniqueSendersAndReceiversIPandPorts(packetCaptureData &data, const u_
 
 	/* retrieve the position of the eth header */
 	eh = (ethernet_header *) (packetData);
-	printf("Ether type: %d\n", eh->ether_type);
 
 	/* retireve the position of the ip header */
     ih = (ip_header *) (packetData + 14); //length of ethernet header
@@ -262,6 +285,7 @@ void updateUniqueSendersAndReceiversIPandPorts(packetCaptureData &data, const u_
 	updateudpUniqueDestinationPorts(data, dport);
 	updateUniqueReceiverMacAddresses(data, eh->ether_dhost);
 	updateUniqueSendersMacAddresses(data, eh->ether_shost);
+	if (eh->ether_type == 8) updateUniqueARPComputers(data, eh->ether_shost, ih->saddr); // double check comparison
 }
 
 void updataMinPacketSize(packetCaptureData &data, const struct pcap_pkthdr* packet) {
@@ -310,14 +334,14 @@ void printPacketCaptureReport(packetCaptureData &data) {
 	std::cout << "Total packets: \t\t" << data.total << std::endl;
 	std::cout << "Unique Senders: " << std::endl;
 	std::cout << "\tIP:" << std::endl;
-	for(int i = 0; i < data.uniqueSenderSize; i++){
+	for(u_int i = 0; i < data.uniqueSenderSize; i++){
 		uniqueUser sender = data.uniqueSenders[i];
 		printf("\t %d.%d.%d.%d",
         	sender.ipAddr.byte1,
         	sender.ipAddr.byte2,
         	sender.ipAddr.byte3,
         	sender.ipAddr.byte4);
-		std::cout << "  \tPackets Sent:: " << sender.numPackets << std::endl;
+		std::cout << "\t\tPackets Sent:: " << sender.numPackets << std::endl;
 	}
 	std::cout << "\tMAC:" << std::endl;
 	for (u_int i = 0; i < data.uniqueSendersMac; i++) {
@@ -332,14 +356,14 @@ void printPacketCaptureReport(packetCaptureData &data) {
 	}
 	std::cout << "Unique Recipients: " << std::endl;
 	std::cout << "\tIP:" << std::endl;
-	for(int i = 0; i < data.uniqueRecipientSize; i++){
+	for(u_int i = 0; i < data.uniqueRecipientSize; i++){
 		uniqueUser recipient = data.uniqueRecipients[i];
 		printf("\t %d.%d.%d.%d",
         	recipient.ipAddr.byte1,
         	recipient.ipAddr.byte2,
         	recipient.ipAddr.byte3,
         	recipient.ipAddr.byte4);
-		std::cout << "\t Packets Received: " << recipient.numPackets << std::endl;
+		std::cout << "\t\t Packets Received: " << recipient.numPackets << std::endl;
 	}
 	std::cout << "\tMAC:" << std::endl;
 	for (u_int i = 0; i < data.uniqueRecipientsMac; i++) {
@@ -362,6 +386,20 @@ void printPacketCaptureReport(packetCaptureData &data) {
 	for(u_int i = 0; i < data.uniqueDestinationPortSize; i++){
 		printf("\t %d \n",
         	data.udpUniqueDestinationPorts[i]);
+	}
+	std::cout << "Computers Participating in ARP:" << std::endl;
+	for (u_int i = 0; i < data.uniqueARPCount; i++) {
+		printf("\t MAC: %02x:%02x:%02x:%02x:%02x:%02x IP: %d.%d.%d.%d\n",
+  			data.uniqueARPComputers[i].macAddress[0],
+  			data.uniqueARPComputers[i].macAddress[1],
+  			data.uniqueARPComputers[i].macAddress[2],
+  			data.uniqueARPComputers[i].macAddress[3],
+  			data.uniqueARPComputers[i].macAddress[4],
+  			data.uniqueARPComputers[i].macAddress[5],
+			data.uniqueARPComputers[i].ipAddress.byte1,
+        	data.uniqueARPComputers[i].ipAddress.byte1,
+        	data.uniqueARPComputers[i].ipAddress.byte1,
+        	data.uniqueARPComputers[i].ipAddress.byte1);
 	}
 	std::cout << "Average packet size: \t" << data.avgPacketSize << std::endl;
 	std::cout << "Minimum packet size: \t" << data.minPacketSize << std::endl;
