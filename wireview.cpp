@@ -64,8 +64,10 @@ typedef struct packetCaptureData {
 	u_int *udpUniqueDestinationPorts;
 	u_int uniqueDestinationPortSize;
 	u_char uniqueSenderMacAddress[50][6]; // oh this is so bad
+	int uniqueSenderMacPackets[50];
 	u_int uniqueSendersMac;
 	u_char uniqueRecipientMacAddress[50][6];
+	int uniqueRecipientsMacPackets[50];
 	u_int uniqueRecipientsMac;
 	u_int minPacketSize;
 	u_int maxPacketSize; 
@@ -189,12 +191,13 @@ void updateUniqueReceiverMacAddresses(packetCaptureData &data, u_char macAddress
 	if (!data.uniqueRecipientsMac) data.uniqueRecipientsMac = 0;
 	for (u_int i = 0; i < data.uniqueRecipientsMac; i++) {
 		if (isEqualCharArray(data.uniqueRecipientMacAddress[i], macAddress)) {
+			data.uniqueRecipientsMacPackets[i] += 1;
 			return; // found a similar one
 		}
 	}
 	// no match found
-	std::cout << "copying too " << data.uniqueRecipientsMac << std::endl;
 	for (int i = 0; i < MAC_ADDRESSS_LENGTH; i++) data.uniqueRecipientMacAddress[data.uniqueRecipientsMac][i] = macAddress[i];
+	data.uniqueRecipientsMacPackets[data.uniqueRecipientsMac] = 0;
 	data.uniqueRecipientsMac++;
 }
 
@@ -202,11 +205,13 @@ void updateUniqueSendersMacAddresses(packetCaptureData &data, u_char macAddress[
 	if (!data.uniqueSendersMac) data.uniqueSendersMac = 0;
 	for (u_int i = 0; i < data.uniqueSendersMac; i++) {
 		if (isEqualCharArray(data.uniqueSenderMacAddress[i], macAddress)) {
+			data.uniqueSenderMacPackets[i] += 1;
 			return; // found a similar one
 		}
 	}
 	// no match found
-	for (int i = 0; i < MAC_ADDRESSS_LENGTH; i++) data.uniqueSenderMacAddress[data.uniqueSendersMac][i] = macAddress[i];	
+	for (int i = 0; i < MAC_ADDRESSS_LENGTH; i++) data.uniqueSenderMacAddress[data.uniqueSendersMac][i] = macAddress[i];
+	data.uniqueSenderMacPackets[data.uniqueSendersMac] = 0;	
 	data.uniqueSendersMac++;
 }
 
@@ -295,18 +300,18 @@ void printPacketCaptureReport(packetCaptureData &data) {
         	sender.ipAddr.byte2,
         	sender.ipAddr.byte3,
         	sender.ipAddr.byte4);
-		std::cout << "\t numPackets: \t" << sender.numPackets << std::endl;
+		std::cout << "  \tPackets Sent:: " << sender.numPackets << std::endl;
 	}
 	std::cout << "\tMAC:" << std::endl;
 	for (u_int i = 0; i < data.uniqueSendersMac; i++) {
-		
-		printf("\t %02x:%02x:%02x:%02x:%02x:%02x\n",
+		printf("\t %02x:%02x:%02x:%02x:%02x:%02x \tPackets Sent: %d\n",
   			data.uniqueSenderMacAddress[i][0],
   			data.uniqueSenderMacAddress[i][1],
   			data.uniqueSenderMacAddress[i][2],
   			data.uniqueSenderMacAddress[i][3],
   			data.uniqueSenderMacAddress[i][4],
-  			data.uniqueSenderMacAddress[i][5]);
+  			data.uniqueSenderMacAddress[i][5],
+			data.uniqueSenderMacPackets[i]);
 	}
 	std::cout << "Unique Recipients: " << std::endl;
 	std::cout << "\tIP:" << std::endl;
@@ -317,17 +322,18 @@ void printPacketCaptureReport(packetCaptureData &data) {
         	recipient.ipAddr.byte2,
         	recipient.ipAddr.byte3,
         	recipient.ipAddr.byte4);
-		std::cout << "\t numPackets: \t" << recipient.numPackets << std::endl;
+		std::cout << "\t Packets Received: " << recipient.numPackets << std::endl;
 	}
 	std::cout << "\tMAC:" << std::endl;
 	for (u_int i = 0; i < data.uniqueRecipientsMac; i++) {
-		printf("\t %02x:%02x:%02x:%02x:%02x:%02x\n",
-  			(unsigned char) data.uniqueRecipientMacAddress[i][0],
-  			(unsigned char) data.uniqueRecipientMacAddress[i][1],
-  			(unsigned char) data.uniqueRecipientMacAddress[i][2],
-  			(unsigned char) data.uniqueRecipientMacAddress[i][3],
-  			(unsigned char) data.uniqueRecipientMacAddress[i][4],
-  			(unsigned char) data.uniqueRecipientMacAddress[i][5]);
+		printf("\t %02x:%02x:%02x:%02x:%02x:%02x \tPackets Received: %d\n",
+  			data.uniqueRecipientMacAddress[i][0],
+  			data.uniqueRecipientMacAddress[i][1],
+  			data.uniqueRecipientMacAddress[i][2],
+  			data.uniqueRecipientMacAddress[i][3],
+  			data.uniqueRecipientMacAddress[i][4],
+  			data.uniqueRecipientMacAddress[i][5],
+			data.uniqueRecipientsMacPackets[i]);
 	}
 	// list of machines participating in arp
 	std::cout << "UDP Unique Source Ports: " << std::endl;
