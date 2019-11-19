@@ -285,7 +285,7 @@ void updateUniqueSendersAndReceiversIPandPorts(packetCaptureData &data, const u_
 	updateudpUniqueDestinationPorts(data, dport);
 	updateUniqueReceiverMacAddresses(data, eh->ether_dhost);
 	updateUniqueSendersMacAddresses(data, eh->ether_shost);
-	if (eh->ether_type == 8) updateUniqueARPComputers(data, eh->ether_shost, ih->saddr); // double check comparison
+	if (eh->ether_type == 1544) updateUniqueARPComputers(data, eh->ether_shost, ih->saddr); // double check comparison
 }
 
 void updataMinPacketSize(packetCaptureData &data, const struct pcap_pkthdr* packet) {
@@ -397,9 +397,9 @@ void printPacketCaptureReport(packetCaptureData &data) {
   			data.uniqueARPComputers[i].macAddress[4],
   			data.uniqueARPComputers[i].macAddress[5],
 			data.uniqueARPComputers[i].ipAddress.byte1,
-        	data.uniqueARPComputers[i].ipAddress.byte1,
-        	data.uniqueARPComputers[i].ipAddress.byte1,
-        	data.uniqueARPComputers[i].ipAddress.byte1);
+        	data.uniqueARPComputers[i].ipAddress.byte2,
+        	data.uniqueARPComputers[i].ipAddress.byte3,
+        	data.uniqueARPComputers[i].ipAddress.byte4);
 	}
 	std::cout << "Average packet size: \t" << data.avgPacketSize << std::endl;
 	std::cout << "Minimum packet size: \t" << data.minPacketSize << std::endl;
