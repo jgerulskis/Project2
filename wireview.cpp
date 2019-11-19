@@ -4,12 +4,21 @@
 #include <cstddef>
 #include <arpa/inet.h>
 
+#define MAC_ADDRESSS_LENGTH 6
+
 typedef struct ip_address{
     u_char byte1;
     u_char byte2;
     u_char byte3;
     u_char byte4;
 }ip_address;
+
+/* Ethernet Header */
+typedef struct ethernet_header {
+	u_char ether_dhost[6]; // ETH address
+	u_char ether_shost[6];
+	u_short ether_type; // ARP Stored here
+}ethernet_header;
 
 /* IPv4 header */
 typedef struct ip_header{
@@ -34,10 +43,6 @@ typedef struct udp_header{
     u_short crc;            // Checksum
 }udp_header;
 
-typedef struct computerInfo {
-	ip_address ipAddress;
-	std::string macAddress;
-}computerInfo;
 
 typedef struct packetCaptureData {
 	struct timeval startDateAndTime;
@@ -48,11 +53,14 @@ typedef struct packetCaptureData {
 	u_int uniqueSenderSize; 
 	ip_address *uniqueRecipients;
 	u_int uniqueRecipientSize; 
-	computerInfo *computers;
 	u_int *udpUniqueSourcePorts;
 	u_int uniqueSourcePortSize;
 	u_int *udpUniqueDestinationPorts;
 	u_int uniqueDestinationPortSize;
+	u_char uniqueSenderMacAddress[50][6]; // oh this is so bad
+	u_int uniqueSendersMac;
+	u_char uniqueRecipientMacAddress[50][6];
+	u_int uniqueRecipientsMac;
 	u_int minPacketSize;
 	u_int maxPacketSize; 
 	u_int sumPacketSize;
@@ -153,33 +161,54 @@ void updateudpUniqueDestinationPorts(packetCaptureData &data, u_short desitinati
 	// TODO: implement
 	bool unique = true;
 
-	int size = data.uniqueDestinationPortSize;
-	u_int *newArr = new u_int[size + 1];
-	for (int i = 0; i < size; i++){
-		u_int port = data.udpUniqueDestinationPorts[i];
-		newArr[i] = port;
-		if(desitinationPort == port){
-			unique = false;
+}
+
+/**
+ * Helper method to compare char arrays of size 6, useful for mac addresses
+ */
+bool isEqualCharArray(u_char arr1[6], u_char arr2[6]) {
+	for (int i = 0; i < 6; i++) if (arr1[i] != arr2[i]) return false;
+	return true;
+}
+
+void updateUniqueReceiverMacAddresses(packetCaptureData &data, u_char macAddress[MAC_ADDRESSS_LENGTH]) {
+	if (!data.uniqueRecipientsMac) data.uniqueRecipientsMac = 0;
+	for (u_int i = 0; i < data.uniqueRecipientsMac; i++) {
+		if (isEqualCharArray(data.uniqueRecipientMacAddress[i], macAddress)) {
+			return; // found a similar one
 		}
 	}
-	if(unique){
-		newArr[size] = desitinationPort;
-		data.uniqueDestinationPortSize++;
-	}
+	// no match found
+	std::cout << "copying too " << data.uniqueRecipientsMac << std::endl;
+	for (int i = 0; i < MAC_ADDRESSS_LENGTH; i++) data.uniqueRecipientMacAddress[data.uniqueRecipientsMac][i] = macAddress[i];
+	data.uniqueRecipientsMac++;
+}
 
-	delete[] data.udpUniqueDestinationPorts;
-	data.udpUniqueDestinationPorts = newArr;
+void updateUniqueSendersMacAddresses(packetCaptureData &data, u_char macAddress[MAC_ADDRESSS_LENGTH]) {
+	if (!data.uniqueSendersMac) data.uniqueSendersMac = 0;
+	for (u_int i = 0; i < data.uniqueSendersMac; i++) {
+		if (isEqualCharArray(data.uniqueSenderMacAddress[i], macAddress)) {
+			return; // found a similar one
+		}
+	}
+	// no match found
+	for (int i = 0; i < MAC_ADDRESSS_LENGTH; i++) data.uniqueSenderMacAddress[data.uniqueSendersMac][i] = macAddress[i];	
+	data.uniqueSendersMac++;
 }
 
 /**
  * Source: https://www.winpcap.org/docs/docs_412/html/group__wpcap__tut6.html
  */
 void updateUniqueSendersAndReceiversIPandPorts(packetCaptureData &data, const u_char *packetData) {
-	
+	ethernet_header *eh;
 	ip_header *ih;
     udp_header *uh;
 	u_int ip_len;
     u_short sport,dport;
+
+	/* retrieve the position of the eth header */
+	eh = (ethernet_header *) (packetData);
+
 	/* retireve the position of the ip header */
     ih = (ip_header *) (packetData + 14); //length of ethernet header
 
@@ -191,22 +220,13 @@ void updateUniqueSendersAndReceiversIPandPorts(packetCaptureData &data, const u_
     sport = ntohs( uh->sport );
     dport = ntohs( uh->dport );
 
-    printf("%d.%d.%d.%d.%d -> %d.%d.%d.%d.%d\n",
-        ih->saddr.byte1,
-        ih->saddr.byte2,
-        ih->saddr.byte3,
-        ih->saddr.byte4,
-        sport,
-        ih->daddr.byte1,
-        ih->daddr.byte2,
-        ih->daddr.byte3,
-        ih->daddr.byte4,
-        dport);
 
 	updateUniqueSenders(data, ih->saddr);
 	updateUniqueRecipients(data, ih->daddr);
 	updateudpUniqueSourcePorts(data, sport);
 	updateudpUniqueDestinationPorts(data, dport);
+	updateUniqueReceiverMacAddresses(data, eh->ether_dhost);
+	updateUniqueSendersMacAddresses(data, eh->ether_shost);
 }
 
 void updataMinPacketSize(packetCaptureData &data, const struct pcap_pkthdr* packet) {
@@ -254,29 +274,52 @@ void printPacketCaptureReport(packetCaptureData &data) {
 	std::cout << "Duration: \t\t" << data.duration << "s" << std::endl;
 	std::cout << "Total packets: \t\t" << data.total << std::endl;
 	std::cout << "Unique Senders: " << std::endl;
-	for(int i = 0; i < data.uniqueSenderSize; i++){
+	std::cout << "\tIP:" << std::endl;
+	for(u_int i = 0; i < data.uniqueSenderSize; i++){
 		printf("\t %d.%d.%d.%d \n",
         	data.uniqueSenders[i].byte1,
         	data.uniqueSenders[i].byte2,
         	data.uniqueSenders[i].byte3,
         	data.uniqueSenders[i].byte4);
 	}
+	std::cout << "\tMAC:" << std::endl;
+	for (u_int i = 0; i < data.uniqueSendersMac; i++) {
+		
+		printf("\t %02x:%02x:%02x:%02x:%02x:%02x\n",
+  			data.uniqueSenderMacAddress[i][0],
+  			data.uniqueSenderMacAddress[i][1],
+  			data.uniqueSenderMacAddress[i][2],
+  			data.uniqueSenderMacAddress[i][3],
+  			data.uniqueSenderMacAddress[i][4],
+  			data.uniqueSenderMacAddress[i][5]);
+	}
 	std::cout << "Unique Recipients: " << std::endl;
-	for(int i = 0; i < data.uniqueRecipientSize; i++){
+	std::cout << "\tIP:" << std::endl;
+	for(u_int i = 0; i < data.uniqueRecipientSize; i++){
 		printf("\t %d.%d.%d.%d \n",
         	data.uniqueRecipients[i].byte1,
         	data.uniqueRecipients[i].byte2,
         	data.uniqueRecipients[i].byte3,
         	data.uniqueRecipients[i].byte4);
 	}
+	std::cout << "\tMAC:" << std::endl;
+	for (u_int i = 0; i < data.uniqueRecipientsMac; i++) {
+		printf("\t %02x:%02x:%02x:%02x:%02x:%02x\n",
+  			(unsigned char) data.uniqueRecipientMacAddress[i][0],
+  			(unsigned char) data.uniqueRecipientMacAddress[i][1],
+  			(unsigned char) data.uniqueRecipientMacAddress[i][2],
+  			(unsigned char) data.uniqueRecipientMacAddress[i][3],
+  			(unsigned char) data.uniqueRecipientMacAddress[i][4],
+  			(unsigned char) data.uniqueRecipientMacAddress[i][5]);
+	}
 	// list of machines participating in arp
 	std::cout << "UDP Unique Source Ports: " << std::endl;
-	for(int i = 0; i < data.uniqueSourcePortSize; i++){
+	for(u_int i = 0; i < data.uniqueSourcePortSize; i++){
 		printf("\t %d \n",
         	data.udpUniqueSourcePorts[i]);
 	}
 	std::cout << "UDP Unique Destination Ports: " << std::endl;
-	for(int i = 0; i < data.uniqueDestinationPortSize; i++){
+	for(u_int i = 0; i < data.uniqueDestinationPortSize; i++){
 		printf("\t %d \n",
         	data.udpUniqueDestinationPorts[i]);
 	}
