@@ -177,6 +177,22 @@ void updateudpUniqueDestinationPorts(packetCaptureData &data, u_short desitinati
 	// TODO: implement
 	bool unique = true;
 
+	int size = data.uniqueDestinationPortSize;
+	u_int *newArr = new u_int[size + 1];
+	for (int i = 0; i < size; i++){
+		u_int port = data.udpUniqueDestinationPorts[i];
+		newArr[i] = port;
+		if(desitinationPort == port){
+			unique = false;
+		}
+	}
+	if(unique){
+		newArr[size] = desitinationPort;
+		data.uniqueDestinationPortSize++;
+	}
+
+	delete[] data.udpUniqueDestinationPorts;
+	data.udpUniqueDestinationPorts = newArr;
 }
 
 /**
@@ -227,6 +243,7 @@ void updateUniqueSendersAndReceiversIPandPorts(packetCaptureData &data, const u_
 
 	/* retrieve the position of the eth header */
 	eh = (ethernet_header *) (packetData);
+	printf("Ether type: %d\n", eh->ether_type);
 
 	/* retireve the position of the ip header */
     ih = (ip_header *) (packetData + 14); //length of ethernet header
