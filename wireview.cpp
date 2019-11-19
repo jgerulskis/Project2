@@ -197,7 +197,7 @@ void updateUniqueReceiverMacAddresses(packetCaptureData &data, u_char macAddress
 	}
 	// no match found
 	for (int i = 0; i < MAC_ADDRESSS_LENGTH; i++) data.uniqueRecipientMacAddress[data.uniqueRecipientsMac][i] = macAddress[i];
-	data.uniqueRecipientsMacPackets[data.uniqueRecipientsMac] = 0;
+	data.uniqueRecipientsMacPackets[data.uniqueRecipientsMac] = 1;
 	data.uniqueRecipientsMac++;
 }
 
@@ -211,7 +211,7 @@ void updateUniqueSendersMacAddresses(packetCaptureData &data, u_char macAddress[
 	}
 	// no match found
 	for (int i = 0; i < MAC_ADDRESSS_LENGTH; i++) data.uniqueSenderMacAddress[data.uniqueSendersMac][i] = macAddress[i];
-	data.uniqueSenderMacPackets[data.uniqueSendersMac] = 0;	
+	data.uniqueSenderMacPackets[data.uniqueSendersMac] = 1;	
 	data.uniqueSendersMac++;
 }
 
